@@ -3,8 +3,6 @@ services:
     name: smart-weigh-api
     runtime: node
     plan: free
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && node dist/index.js
     envVars:
       - key: JWT_SECRET
         generateValue: true
