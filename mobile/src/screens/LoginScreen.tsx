@@ -14,6 +14,10 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
+const DEMO_EMAIL = 'demo@smartweigh.com';
+const DEMO_PASSWORD = 'Demo@123';
+const DEMO_NAME = 'Demo User';
+
 export default function LoginScreen({ navigation }: any) {
   const { login } = useAuth();
   const [isSignup, setIsSignup] = useState(false);
@@ -36,12 +40,29 @@ export default function LoginScreen({ navigation }: any) {
     setLoading(true);
     try {
       if (isSignup) {
-        await api.register(name, email, password);
+        const result = await api.register(name, email, password);
+        login(result.token, result.user);
       } else {
-        await api.login(email, password);
+        const result = await api.login(email, password);
+        login(result.token, result.user);
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleQuickLogin() {
+    setLoading(true);
+    try {
+      await api.register(DEMO_NAME, DEMO_EMAIL, DEMO_PASSWORD);
+    } catch (_) {}
+    try {
+      const result = await api.login(DEMO_EMAIL, DEMO_PASSWORD);
+      login(result.token, result.user);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Quick login failed');
     } finally {
       setLoading(false);
     }
@@ -115,6 +136,14 @@ export default function LoginScreen({ navigation }: any) {
                 : "Don't have an account? Sign Up"}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickButton, loading && styles.buttonDisabled]}
+            onPress={handleQuickLogin}
+            disabled={loading}
+          >
+            <Text style={styles.quickButtonText}>Quick Demo Login</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -179,5 +208,18 @@ const styles = StyleSheet.create({
   toggleText: {
     color: '#e94560',
     fontSize: 14,
+  },
+  quickButton: {
+    borderWidth: 1,
+    borderColor: '#e94560',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  quickButtonText: {
+    color: '#e94560',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
