@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Smart Weigh",
+    "slug": "animesh",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smartweigh.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Smart Weigh needs camera access to capture weighing machine displays for weight reading.",
+        "NSPhotoLibraryUsageDescription": "Smart Weigh needs photo library access to select images for weight reading."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.smartweigh.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Smart Weigh needs camera access to capture weighing machine displays."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Smart Weigh needs photo access to select images for weight reading."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1a407ec8-3a85-4560-8ae3-a541d3316d38"
+      }
+    },
+    "owner": "an1mesh07s-team"
+  }
+}
