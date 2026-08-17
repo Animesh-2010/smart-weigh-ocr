@@ -5,3 +5,11 @@ uploads/
 *.db
 .env
 .DS_Store
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
