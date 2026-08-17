@@ -3,6 +3,7 @@ services:
     name: smart-weigh-api
     runtime: node
     plan: free
+    rootDir: backend
     buildCommand: npm install
     startCommand: node dist/index.js
     envVars:
