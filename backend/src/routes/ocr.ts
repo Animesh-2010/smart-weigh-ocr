@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
+import { Request } from 'express';
 import { extractWeightFromImage, validateOCRResult } from '../services/ocr';
 
-export async function processImage(req: AuthRequest, res: Response): Promise<void> {
+export async function processImage(req: Request, res: Response): Promise<void> {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'Image file is required' });

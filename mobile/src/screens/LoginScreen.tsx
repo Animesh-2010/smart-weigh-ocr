@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
 const DEMO_EMAIL = 'demo@smartweigh.com';
-const DEMO_PASSWORD = 'Demo@123';
+const DEMO_PASSWORD = 'Demo@123456';
 const DEMO_NAME = 'Demo User';
 
 export default function LoginScreen({ navigation }: any) {
@@ -32,6 +32,11 @@ export default function LoginScreen({ navigation }: any) {
       return;
     }
 
+    if (isSignup && !name.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+
     if (password.length < 6) {
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
@@ -39,13 +44,13 @@ export default function LoginScreen({ navigation }: any) {
 
     setLoading(true);
     try {
+      let session;
       if (isSignup) {
-        const result = await api.register(name, email, password);
-        login(result.token, result.user);
+        session = await api.signup(name.trim(), email, password);
       } else {
-        const result = await api.login(email, password);
-        login(result.token, result.user);
+        session = await api.login(email, password);
       }
+      await login(session);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Authentication failed');
     } finally {
@@ -53,16 +58,20 @@ export default function LoginScreen({ navigation }: any) {
     }
   }
 
-  async function handleQuickLogin() {
+  async function handleDemoLogin() {
     setLoading(true);
     try {
-      await api.register(DEMO_NAME, DEMO_EMAIL, DEMO_PASSWORD);
-    } catch (_) {}
-    try {
-      const result = await api.login(DEMO_EMAIL, DEMO_PASSWORD);
-      login(result.token, result.user);
+      // Try signup first (will fail if already exists, that's fine)
+      try {
+        await api.signup(DEMO_NAME, DEMO_EMAIL, DEMO_PASSWORD);
+      } catch (_) {
+        // User likely already exists — ignore signup error
+      }
+      // Now login
+      const session = await api.login(DEMO_EMAIL, DEMO_PASSWORD);
+      await login(session);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Quick login failed');
+      Alert.alert('Demo Login Failed', error.message || 'Could not login');
     } finally {
       setLoading(false);
     }
@@ -137,12 +146,18 @@ export default function LoginScreen({ navigation }: any) {
             </Text>
           </TouchableOpacity>
 
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           <TouchableOpacity
-            style={[styles.quickButton, loading && styles.buttonDisabled]}
-            onPress={handleQuickLogin}
+            style={[styles.demoButton, loading && styles.buttonDisabled]}
+            onPress={handleDemoLogin}
             disabled={loading}
           >
-            <Text style={styles.quickButtonText}>Quick Demo Login</Text>
+            <Text style={styles.demoButtonText}>Quick Demo Login</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -203,21 +218,35 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 8,
   },
   toggleText: {
     color: '#e94560',
     fontSize: 14,
   },
-  quickButton: {
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#0f3460',
+  },
+  dividerText: {
+    color: '#666',
+    fontSize: 12,
+    marginHorizontal: 12,
+  },
+  demoButton: {
     borderWidth: 1,
     borderColor: '#e94560',
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
-    marginTop: 8,
   },
-  quickButtonText: {
+  demoButtonText: {
     color: '#e94560',
     fontSize: 16,
     fontWeight: '600',

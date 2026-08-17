@@ -11,9 +11,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { UnitType } from '../types';
 
 export default function AddBinScreen({ navigation }: any) {
+  const { user, getValidToken } = useAuth();
   const [name, setName] = useState('');
   const [weight, setWeight] = useState('');
   const [unit, setUnit] = useState<UnitType>('kg');
@@ -33,7 +35,8 @@ export default function AddBinScreen({ navigation }: any) {
 
     setLoading(true);
     try {
-      await api.createBin(name.trim(), weightValue, unit);
+      const token = await getValidToken();
+      await api.createBin(token, user!.id, name.trim(), weightValue, unit);
       Alert.alert('Success', 'Bin created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);

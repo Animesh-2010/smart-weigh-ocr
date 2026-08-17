@@ -10,11 +10,13 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function CameraCaptureScreen({ route, navigation }: any) {
   const { mode, binId, binName, tareWeight, tareUnit, onWeightDetected } = route.params;
+  const { getValidToken } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState('Position the display inside the frame');
@@ -40,7 +42,8 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
 
       setFeedback('Analyzing weight display...');
 
-      const ocrResult = await api.processOCR(photo.uri);
+      const token = await getValidToken();
+      const ocrResult = await api.processOCR(photo.uri, token);
 
       if (!ocrResult.validation.valid) {
         Alert.alert(

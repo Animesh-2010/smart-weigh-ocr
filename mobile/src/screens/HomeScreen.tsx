@@ -15,23 +15,26 @@ import { Bin, WeighingRecord } from '../types';
 import { formatWeight, formatDate, formatTime } from '../utils/format';
 
 export default function HomeScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user, logout, getValidToken } = useAuth();
   const [bins, setBins] = useState<Bin[]>([]);
   const [recentWeighings, setRecentWeighings] = useState<WeighingRecord[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
+      const token = await getValidToken();
       const [binsResponse, weighingsResponse] = await Promise.all([
-        api.getBins(),
-        api.getWeighings(5),
+        api.getBins(token),
+        api.getWeighings(token, 5),
       ]);
       setBins(binsResponse.bins);
       setRecentWeighings(weighingsResponse.weighings);
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to load data');
+      if (error.message?.includes('expired') || error.message?.includes('Not signed in')) {
+        logout();
+      }
     }
-  }, []);
+  }, [getValidToken, logout]);
 
   useFocusEffect(
     useCallback(() => {

@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { formatWeight } from '../utils/format';
 
 export default function WeighResultScreen({ route, navigation }: any) {
+  const { user, getValidToken } = useAuth();
   const {
     binId,
     binName,
@@ -33,13 +35,16 @@ export default function WeighResultScreen({ route, navigation }: any) {
   async function handleSave() {
     setSaving(true);
     try {
+      const token = await getValidToken();
       await api.createWeighing(
+        token,
+        user!.id,
         binId,
         grossWeight,
         unit,
         ocrConfidence,
         ocrRawResult,
-        processingTimeMs
+        processingTimeMs,
       );
       Alert.alert('Saved', 'Weighing record saved successfully', [
         { text: 'OK', onPress: () => navigation.navigate('HomeTabs') },

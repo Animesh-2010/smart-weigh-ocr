@@ -9,24 +9,29 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { WeighingRecord } from '../types';
 import { formatWeight, formatDate, formatTime } from '../utils/format';
 
 export default function HistoryScreen({ navigation }: any) {
+  const { getValidToken, logout } = useAuth();
   const [weighings, setWeighings] = useState<WeighingRecord[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadWeighings = useCallback(async () => {
     try {
-      const response = await api.getWeighings(100);
+      const token = await getValidToken();
+      const response = await api.getWeighings(token, 100);
       setWeighings(response.weighings);
-    } catch (error) {
-      console.error('Failed to load weighings:', error);
+    } catch (error: any) {
+      if (error.message?.includes('expired') || error.message?.includes('Not signed in')) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getValidToken, logout]);
 
   useFocusEffect(
     useCallback(() => {
