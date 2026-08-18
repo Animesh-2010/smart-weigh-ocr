@@ -1,15 +1,18 @@
-import { Response } from 'express';
-import { Request } from 'express';
+import { Response, Request } from 'express';
 import { extractWeightFromImage, validateOCRResult } from '../services/ocr';
 
 export async function processImage(req: Request, res: Response): Promise<void> {
   try {
-    if (!req.file) {
-      res.status(400).json({ error: 'Image file is required' });
+    const { image } = req.body;
+
+    if (!image) {
+      res.status(400).json({ error: 'Image base64 data is required' });
       return;
     }
 
-    const ocrResult = await extractWeightFromImage(req.file.buffer);
+    const imageBuffer = Buffer.from(image, 'base64');
+
+    const ocrResult = await extractWeightFromImage(imageBuffer);
     const validation = validateOCRResult(ocrResult);
 
     res.json({

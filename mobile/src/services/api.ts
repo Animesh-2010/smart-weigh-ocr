@@ -412,23 +412,18 @@ async function getWeighing(token: string, id: string) {
 // ─── OCR API (Render backend) ───────────────────────────────────
 
 async function processOCR(imageUri: string, token: string) {
-  const formData = new FormData();
-  const filename = imageUri.split('/').pop() || 'photo.jpg';
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-  formData.append('image', {
-    uri: imageUri,
-    name: filename,
-    type,
-  } as any);
+  const FileSystem = require('expo-file-system');
+  const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
 
   const res = await fetch(`${OCR_BACKEND_URL}/ocr/process`, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: formData,
+    body: JSON.stringify({ image: base64 }),
   });
 
   const data = await res.json();
