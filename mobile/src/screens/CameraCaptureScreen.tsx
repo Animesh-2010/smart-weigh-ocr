@@ -43,7 +43,21 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
       setFeedback('Analyzing weight display...');
 
       const token = await getValidToken();
-      const ocrResult = await api.processOCR(photo.uri, token);
+      let ocrResult;
+      try {
+        ocrResult = await api.processOCR(photo.uri, token);
+      } catch (err: any) {
+        console.error('OCR request failed:', err.message);
+        throw new Error('Failed to connect to OCR server. Please check your internet and try again.');
+      }
+
+      if (!ocrResult) {
+        Alert.alert('Error', 'No response from OCR server', [
+          { text: 'Retry', onPress: () => setProcessing(false) },
+        ]);
+        setProcessing(false);
+        return;
+      }
 
       if (!ocrResult.validation.valid) {
         Alert.alert(

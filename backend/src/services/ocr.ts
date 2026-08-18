@@ -66,6 +66,16 @@ export async function detectDisplayRegion(imageBuffer: Buffer): Promise<Buffer> 
   return cropped;
 }
 
+async function runOCR(imageBuffer: Buffer): Promise<{ text: string; confidence: number; rawDetections: string[] }> {
+  const result = await Tesseract.recognize(imageBuffer, 'eng', {
+    logger: () => {},
+  });
+  const rawText = result.data.text;
+  const confidence = result.data.confidence / 100;
+  const allTexts = result.data.lines.map(line => line.text.trim()).filter(t => t.length > 0);
+  return { text: rawText, confidence, rawDetections: allTexts };
+}
+
 export async function extractWeightFromImage(imageBuffer: Buffer): Promise<OCRResult> {
   const startTime = Date.now();
 
@@ -73,17 +83,21 @@ export async function extractWeightFromImage(imageBuffer: Buffer): Promise<OCRRe
     const displayBuffer = await detectDisplayRegion(imageBuffer);
     const preprocessed = await preprocessImage(displayBuffer);
 
-    const result = await Tesseract.recognize(preprocessed.buffer, 'eng', {
-      logger: () => {},
-    });
+    let { text: rawText, confidence, rawDetections } = await runOCR(preprocessed.buffer);
+    let weight = parseWeight(rawText);
+    let unit = parseUnit(rawText);
 
-    const rawText = result.data.text;
-    const confidence = result.data.confidence / 100;
-
-    const allTexts = result.data.lines.map(line => line.text.trim()).filter(t => t.length > 0);
-
-    const weight = parseWeight(rawText);
-    const unit = parseUnit(rawText);
+    if (!weight) {
+      const fullPreprocessed = await preprocessImage(imageBuffer);
+      const fullResult = await runOCR(fullPreprocessed.buffer);
+      if (parseWeight(fullResult.text)) {
+        rawText = fullResult.text;
+        confidence = fullResult.confidence;
+        rawDetections = fullResult.rawDetections;
+        weight = parseWeight(rawText);
+        unit = parseUnit(rawText);
+      }
+    }
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -93,7 +107,7 @@ export async function extractWeightFromImage(imageBuffer: Buffer): Promise<OCRRe
       weight,
       unit,
       processingTimeMs,
-      rawDetections: allTexts,
+      rawDetections,
     };
   } catch (error) {
     console.error('OCR extraction error:', error);
@@ -167,7 +181,7 @@ export function validateOCRResult(ocrResult: OCRResult): {
   const unit = ocrResult.unit || config.defaultUnit;
   const grams = unit === 'kg' ? ocrResult.weight * 1000 : ocrResult.weight;
 
-  if (grams < 10 || grams > 500000) {
+  if (grams < 1 || grams > 500000) {
     return {
       valid: false,
       confidence: 'medium',

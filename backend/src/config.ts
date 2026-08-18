@@ -6,7 +6,7 @@ export const config = {
   maxImageSize: parseInt(process.env.MAX_IMAGE_SIZE || '10485760', 10),
   ocr: {
     engine: process.env.OCR_ENGINE || 'tesseract',
-    confidenceThreshold: parseFloat(process.env.OCR_CONFIDENCE_THRESHOLD || '0.6'),
+    confidenceThreshold: parseFloat(process.env.OCR_CONFIDENCE_THRESHOLD || '0.3'),
     maxWeightKg: parseFloat(process.env.MAX_WEIGHT_KG || '500'),
     minWeightKg: parseFloat(process.env.MIN_WEIGHT_KG || '0.01'),
   },

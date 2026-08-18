@@ -411,19 +411,23 @@ async function getWeighing(token: string, id: string) {
 
 // ─── OCR API (Render backend) ───────────────────────────────────
 
-async function processOCR(imageUri: string, token: string) {
-  const { readAsStringAsync, EncodingType } = require('expo-file-system/legacy');
-  const base64 = await readAsStringAsync(imageUri, {
-    encoding: EncodingType.Base64,
-  });
+import * as ImageManipulator from 'expo-image-manipulator';
+
+async function processOCR(imageUri: string, _token: string) {
+  const manipulated = await ImageManipulator.manipulateAsync(
+    imageUri,
+    [{ resize: { width: 1024 } }],
+    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+
+  if (!manipulated.base64) {
+    throw new Error('Failed to encode image');
+  }
 
   const res = await fetch(`${OCR_BACKEND_URL}/ocr/process`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ image: base64 }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: manipulated.base64 }),
   });
 
   const data = await res.json();

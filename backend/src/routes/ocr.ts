@@ -10,10 +10,15 @@ export async function processImage(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    console.log(`OCR request received - base64 length: ${image.length}`);
+
     const imageBuffer = Buffer.from(image, 'base64');
+    console.log(`Image buffer size: ${imageBuffer.length} bytes`);
 
     const ocrResult = await extractWeightFromImage(imageBuffer);
     const validation = validateOCRResult(ocrResult);
+
+    console.log(`OCR result - weight: ${ocrResult.weight}, unit: ${ocrResult.unit}, confidence: ${ocrResult.confidence}, valid: ${validation.valid}`);
 
     res.json({
       ocr: {
