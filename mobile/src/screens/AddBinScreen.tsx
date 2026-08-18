@@ -17,7 +17,7 @@ import { UnitType } from '../types';
 export default function AddBinScreen({ navigation }: any) {
   const { user, getValidToken } = useAuth();
   const [name, setName] = useState('');
-  const [weight, setWeight] = useState('');
+  const [weight, setWeight] = useState<number | null>(null);
   const [unit, setUnit] = useState<UnitType>('kg');
   const [loading, setLoading] = useState(false);
 
@@ -27,16 +27,15 @@ export default function AddBinScreen({ navigation }: any) {
       return;
     }
 
-    const weightValue = parseFloat(weight);
-    if (isNaN(weightValue) || weightValue <= 0) {
-      Alert.alert('Error', 'Please enter a valid weight');
+    if (weight === null || weight <= 0) {
+      Alert.alert('Error', 'Please capture the empty bin weight using the camera');
       return;
     }
 
     setLoading(true);
     try {
       const token = await getValidToken();
-      await api.createBin(token, user!.id, name.trim(), weightValue, unit);
+      await api.createBin(token, user!.id, name.trim(), weight, unit);
       Alert.alert('Success', 'Bin created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -47,15 +46,17 @@ export default function AddBinScreen({ navigation }: any) {
     }
   }
 
-  async function handleCameraCapture() {
+  function handleCameraCapture() {
     navigation.navigate('CameraCapture', {
       mode: 'tare',
       onWeightDetected: (detectedWeight: number, detectedUnit: string) => {
-        setWeight(detectedWeight.toString());
+        setWeight(detectedWeight);
         setUnit(detectedUnit as UnitType);
       },
     });
   }
+
+  const hasWeight = weight !== null;
 
   return (
     <KeyboardAvoidingView
@@ -81,44 +82,37 @@ export default function AddBinScreen({ navigation }: any) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Empty Weight</Text>
-            <View style={styles.weightRow}>
-              <TextInput
-                style={[styles.input, styles.weightInput]}
-                placeholder="0.00"
-                placeholderTextColor="#666"
-                value={weight}
-                onChangeText={setWeight}
-                keyboardType="decimal-pad"
-              />
-              <View style={styles.unitSelector}>
+            <Text style={styles.label}>Empty Weight (via Camera)</Text>
+            {hasWeight ? (
+              <View style={styles.capturedCard}>
+                <Text style={styles.capturedWeight}>
+                  {unit === 'kg' ? `${weight} kg` : `${weight} g`}
+                </Text>
+                <Text style={styles.capturedLabel}>Weight captured successfully</Text>
                 <TouchableOpacity
-                  style={[styles.unitButton, unit === 'kg' && styles.unitButtonActive]}
-                  onPress={() => setUnit('kg')}
+                  style={styles.retakeButton}
+                  onPress={handleCameraCapture}
                 >
-                  <Text style={[styles.unitText, unit === 'kg' && styles.unitTextActive]}>kg</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.unitButton, unit === 'g' && styles.unitButtonActive]}
-                  onPress={() => setUnit('g')}
-                >
-                  <Text style={[styles.unitText, unit === 'g' && styles.unitTextActive]}>g</Text>
+                  <Text style={styles.retakeButtonText}>Retake</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            ) : (
+              <TouchableOpacity style={styles.cameraButton} onPress={handleCameraCapture}>
+                <Text style={styles.cameraButtonText}>Capture Empty Bin Weight</Text>
+                <Text style={styles.cameraSubtext}>
+                  Place empty bin on scale and capture the display
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <TouchableOpacity style={styles.cameraButton} onPress={handleCameraCapture}>
-            <Text style={styles.cameraButtonText}>Take Photo of Empty Bin</Text>
-            <Text style={styles.cameraSubtext}>
-              Place empty bin on scale and capture the display
-            </Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.saveButton, loading && styles.buttonDisabled]}
+            style={[
+              styles.saveButton,
+              (!hasWeight || loading) && styles.buttonDisabled,
+            ]}
             onPress={handleSave}
-            disabled={loading}
+            disabled={!hasWeight || loading}
           >
             <Text style={styles.saveButtonText}>
               {loading ? 'Saving...' : 'Save Bin'}
@@ -172,40 +166,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#0f3460',
   },
-  weightRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  weightInput: {
-    flex: 1,
-  },
-  unitSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#16213e',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#0f3460',
-    overflow: 'hidden',
-  },
-  unitButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  unitButtonActive: {
-    backgroundColor: '#e94560',
-  },
-  unitText: {
-    fontSize: 16,
-    color: '#aaa',
-    fontWeight: '600',
-  },
-  unitTextActive: {
-    color: '#fff',
-  },
   cameraButton: {
     backgroundColor: '#0f3460',
     borderRadius: 12,
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#e94560',
@@ -220,6 +184,37 @@ const styles = StyleSheet.create({
   cameraSubtext: {
     color: '#888',
     fontSize: 13,
+  },
+  capturedCard: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  capturedWeight: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginBottom: 4,
+  },
+  capturedLabel: {
+    color: '#aaa',
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  retakeButton: {
+    borderWidth: 1,
+    borderColor: '#e94560',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  retakeButtonText: {
+    color: '#e94560',
+    fontSize: 14,
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: '#e94560',
