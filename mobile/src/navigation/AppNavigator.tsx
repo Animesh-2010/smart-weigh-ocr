@@ -11,6 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import AddBinScreen from '../screens/AddBinScreen';
 import WeighBinScreen from '../screens/WeighBinScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
+import CropPreviewScreen from '../screens/CropPreviewScreen';
 import WeighResultScreen from '../screens/WeighResultScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import WeighingDetailScreen from '../screens/WeighingDetailScreen';
@@ -101,6 +102,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="CameraCapture"
               component={CameraCaptureScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal' }}
+            />
+            <Stack.Screen
+              name="CropPreview"
+              component={CropPreviewScreen}
               options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
             <Stack.Screen

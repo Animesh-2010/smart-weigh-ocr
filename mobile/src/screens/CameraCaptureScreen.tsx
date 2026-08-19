@@ -9,28 +9,23 @@ import {
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function CameraCaptureScreen({ route, navigation }: any) {
-  const { mode, binId, binName, tareWeight, tareUnit, onWeightDetected } = route.params;
-  const { getValidToken } = useAuth();
+  const { mode, binId, binName, tareWeight, tareUnit } = route.params;
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
-  const [feedback, setFeedback] = useState('Position the display inside the frame');
   const cameraRef = useRef<CameraView>(null);
 
   async function captureAndProcess() {
     if (!cameraRef.current || processing) return;
 
     setProcessing(true);
-    setFeedback('Processing image...');
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.85,
         skipProcessing: false,
       });
 
@@ -40,100 +35,22 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
         return;
       }
 
-      setFeedback('Analyzing weight display...');
-
-      const token = await getValidToken();
-      let ocrResult;
-      try {
-        ocrResult = await api.processOCR(photo.uri, token);
-      } catch (err: any) {
-        console.error('OCR request failed:', err.message);
-        throw new Error('Failed to connect to OCR server. Please check your internet and try again.');
-      }
-
-      if (!ocrResult) {
-        Alert.alert('Error', 'No response from OCR server', [
-          { text: 'Retry', onPress: () => setProcessing(false) },
-        ]);
-        setProcessing(false);
-        return;
-      }
-
-      if (!ocrResult.validation.valid) {
-        Alert.alert(
-          'Could Not Read Weight',
-          ocrResult.validation.error || 'Please retake the photo',
-          [
-            { text: 'Retake', onPress: () => setProcessing(false) },
-            { text: 'Cancel', onPress: () => navigation.goBack(), style: 'cancel' },
-          ]
-        );
-        setProcessing(false);
-        return;
-      }
-
-      if (!ocrResult.ocr.weight) {
-        Alert.alert(
-          'No Weight Detected',
-          'We could not detect a weight value. Please retake the photo.',
-          [
-            { text: 'Retake', onPress: () => setProcessing(false) },
-            { text: 'Cancel', onPress: () => navigation.goBack(), style: 'cancel' },
-          ]
-        );
-        setProcessing(false);
-        return;
-      }
-
-      const detectedWeight = ocrResult.ocr.weight;
-      const detectedUnit = ocrResult.ocr.unit || 'kg';
-      const confidence = ocrResult.ocr.confidence;
-
-      Alert.alert(
-        'Weight Detected',
-        `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(confidence * 100)}%`,
-        [
-          {
-            text: 'Confirm',
-            onPress: () => handleWeightResult(detectedWeight, detectedUnit, ocrResult),
-          },
-          { text: 'Retake', onPress: () => setProcessing(false) },
-        ]
-      );
+      navigation.replace('CropPreview', {
+        imageUri: photo.uri,
+        originalWidth: photo.width,
+        originalHeight: photo.height,
+        mode,
+        binId,
+        binName,
+        tareWeight,
+        tareUnit,
+        onWeightDetected: route.params.onWeightDetected,
+      });
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to process image', [
+      Alert.alert('Error', error.message || 'Failed to capture image', [
         { text: 'Retry', onPress: () => setProcessing(false) },
       ]);
     }
-  }
-
-  async function handleWeightResult(
-    weight: number,
-    unit: string,
-    ocrResult: any
-  ) {
-    if (mode === 'tare' && onWeightDetected) {
-      onWeightDetected(weight, unit);
-      navigation.goBack();
-      return;
-    }
-
-    if (mode === 'weigh' && binId && tareWeight !== undefined && tareUnit) {
-      navigation.navigate('WeighResult', {
-        binId,
-        binName: binName || '',
-        grossWeight: weight,
-        grossUnit: unit,
-        tareWeight,
-        tareUnit,
-        ocrConfidence: ocrResult.ocr.confidence,
-        ocrRawResult: ocrResult.ocr.text,
-        processingTimeMs: ocrResult.ocr.processing_time_ms,
-      });
-      return;
-    }
-
-    setProcessing(false);
   }
 
   if (!permission) {
@@ -174,6 +91,9 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
                 ? 'Place empty bin on scale'
                 : `Place ${binName || 'filled bin'} on scale`}
             </Text>
+            <Text style={styles.subInstructionText}>
+              Point camera at the weight display
+            </Text>
           </View>
 
           <View style={styles.displayFrameContainer}>
@@ -183,15 +103,16 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
           </View>
 
           <View style={styles.overlayBottom}>
-            <Text style={styles.feedbackText}>{feedback}</Text>
-
             {processing ? (
               <View style={styles.processingContainer}>
                 <ActivityIndicator size="large" color="#e94560" />
-                <Text style={styles.processingText}>Processing...</Text>
+                <Text style={styles.processingText}>Capturing...</Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.captureButton} onPress={captureAndProcess}>
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={captureAndProcess}
+              >
                 <View style={styles.captureButtonInner} />
               </TouchableOpacity>
             )}
@@ -235,6 +156,14 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
+  subInstructionText: {
+    color: '#ccc',
+    fontSize: 13,
+    marginTop: 6,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   displayFrameContainer: {
     flex: 0.4,
     justifyContent: 'center',
@@ -261,13 +190,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
-  },
-  feedbackText: {
-    color: '#fff',
-    fontSize: 14,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   captureButton: {
     width: 72,
