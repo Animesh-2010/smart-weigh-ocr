@@ -53,10 +53,10 @@ export default function CropPreviewScreen({ route, navigation }: any) {
   const imgTop = (SH - displayH) / 2 - 40;
 
   const initialBox: Box = {
-    x: SW * 0.08,
-    y: imgTop + displayH * 0.25,
-    w: SW * 0.84,
-    h: displayH * 0.35,
+    x: 4,
+    y: imgTop + 4,
+    w: SW - 8,
+    h: displayH - 8,
   };
 
   const [box, setBox] = useState<Box>(initialBox);

@@ -10,11 +10,32 @@ export interface LocalOCRResult {
 }
 
 function parseWeight(text: string): number | null {
+  const cleaned = text
+    .replace(/[oO]/g, '0')
+    .replace(/[lI|]/g, '1')
+    .replace(/[zZ]/g, '2')
+    .replace(/[sS]/g, '5')
+    .replace(/[B]/g, '8')
+    .replace(/[gG](?=\s|$)/gi, '')
+    .trim();
+
   const patterns = [
     /(\d+\.?\d*)\s*(kg|g|KG|G|Kg|kgs|KGS)\b/,
-    /(\d+\.\d{1,3})\b/,
-    /(\d+)\b/,
+    /\b(\d{1,5}\.\d{1,3})\b/,
+    /\b(\d{2,6})\b/,
   ];
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match) {
+      const value = parseFloat(match[1]);
+      if (!isNaN(value) && value > 0) {
+        if (value > 0.001 && value < 100000) {
+          return value;
+        }
+      }
+    }
+  }
 
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -25,21 +46,22 @@ function parseWeight(text: string): number | null {
       }
     }
   }
+
   return null;
 }
 
 function parseUnit(text: string): string | null {
   if (/\b(kg|kgs|KG|KGS|Kg)\b/.test(text)) return 'kg';
-  if (/\b(g)\b/.test(text)) return 'g';
+  if (/\b(g|G)\b/.test(text)) return 'g';
   return null;
 }
 
 export async function processImageLocally(imageUri: string): Promise<LocalOCRResult> {
   const manipulated = await ImageManipulator.manipulateAsync(
     imageUri,
-    [{ resize: { width: 1200 } }],
+    [{ resize: { width: 1600 } }],
     {
-      compress: 0.9,
+      compress: 0.95,
       format: ImageManipulator.SaveFormat.JPEG,
     },
   );
@@ -55,18 +77,35 @@ export async function processImageLocally(imageUri: string): Promise<LocalOCRRes
   let bestWeight: number | null = null;
   let bestUnit: string | null = null;
 
-  const allText = rawLines.join(' ');
-  bestWeight = parseWeight(allText);
-  bestUnit = parseUnit(allText);
+  for (const line of rawLines) {
+    const w = parseWeight(line);
+    if (w) {
+      bestWeight = w;
+      bestUnit = parseUnit(line);
+      break;
+    }
+  }
 
   if (!bestWeight) {
-    for (const line of rawLines) {
-      const w = parseWeight(line);
-      if (w) {
-        bestWeight = w;
-        bestUnit = parseUnit(line);
-        break;
+    const allText = rawLines.join(' ');
+    bestWeight = parseWeight(allText);
+    bestUnit = parseUnit(allText);
+  }
+
+  if (!bestWeight) {
+    for (const block of result.blocks) {
+      for (const line of block.lines) {
+        for (const element of line.elements) {
+          const w = parseWeight(element.text);
+          if (w) {
+            bestWeight = w;
+            bestUnit = parseUnit(element.text);
+            break;
+          }
+        }
+        if (bestWeight) break;
       }
+      if (bestWeight) break;
     }
   }
 

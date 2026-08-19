@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { processImageLocally } from '../services/ocr';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -16,12 +17,36 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
   const { mode, binId, binName, tareWeight, tareUnit } = route.params;
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const cameraRef = useRef<CameraView>(null);
+
+  async function handleResult(weight: number, unit: string, rawText: string, confidence: number) {
+    if (mode === 'tare' && route.params.onWeightDetected) {
+      route.params.onWeightDetected(weight, unit);
+      navigation.goBack();
+      return;
+    }
+    if (mode === 'weigh' && binId) {
+      navigation.navigate('WeighResult', {
+        binId,
+        binName: binName || '',
+        grossWeight: weight,
+        grossUnit: unit,
+        tareWeight,
+        tareUnit,
+        ocrConfidence: confidence,
+        ocrRawResult: rawText,
+        processingTimeMs: 0,
+      });
+      return;
+    }
+  }
 
   async function captureAndProcess() {
     if (!cameraRef.current || processing) return;
 
     setProcessing(true);
+    setFeedback('Capturing...');
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -35,22 +60,58 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
         return;
       }
 
-      navigation.replace('CropPreview', {
-        imageUri: photo.uri,
-        originalWidth: photo.width,
-        originalHeight: photo.height,
-        mode,
-        binId,
-        binName,
-        tareWeight,
-        tareUnit,
-        onWeightDetected: route.params.onWeightDetected,
-      });
+      setFeedback('Analyzing full image...');
+
+      const ocrResult = await processImageLocally(photo.uri);
+
+      if (ocrResult.weight) {
+        const unit = ocrResult.unit || 'kg';
+        Alert.alert(
+          'Weight Detected',
+          `Detected: ${ocrResult.weight} ${unit}\nConfidence: ${Math.round(ocrResult.confidence * 100)}%\n\nRaw: ${ocrResult.rawText}`,
+          [
+            {
+              text: 'Confirm',
+              onPress: () => handleResult(ocrResult.weight!, unit, ocrResult.rawText, ocrResult.confidence),
+            },
+            { text: 'Crop & Retry', onPress: () => navigateToCrop(photo) },
+            { text: 'Retake', onPress: () => setProcessing(false) },
+          ],
+        );
+      } else {
+        Alert.alert(
+          'No Weight Found',
+          ocrResult.rawText
+            ? `Detected text:\n"${ocrResult.rawText}"\n\nCould not find a weight value. Try cropping to the display.`
+            : 'No text detected. Try pointing the camera directly at the weight display.',
+          [
+            { text: 'Crop & Adjust', onPress: () => navigateToCrop(photo) },
+            { text: 'Retake', onPress: () => setProcessing(false) },
+          ],
+        );
+      }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to capture image', [
+      Alert.alert('Error', error.message || 'Failed to process image', [
         { text: 'Retry', onPress: () => setProcessing(false) },
       ]);
+    } finally {
+      setProcessing(false);
+      setFeedback('');
     }
+  }
+
+  function navigateToCrop(photo: any) {
+    navigation.replace('CropPreview', {
+      imageUri: photo.uri,
+      originalWidth: photo.width,
+      originalHeight: photo.height,
+      mode,
+      binId,
+      binName,
+      tareWeight,
+      tareUnit,
+      onWeightDetected: route.params.onWeightDetected,
+    });
   }
 
   if (!permission) {
@@ -106,7 +167,7 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
             {processing ? (
               <View style={styles.processingContainer}>
                 <ActivityIndicator size="large" color="#e94560" />
-                <Text style={styles.processingText}>Capturing...</Text>
+                <Text style={styles.processingText}>{feedback || 'Processing...'}</Text>
               </View>
             ) : (
               <TouchableOpacity
