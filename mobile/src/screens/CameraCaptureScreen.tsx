@@ -89,31 +89,17 @@ export default function CameraCaptureScreen({ route, navigation }: any) {
       const detectedUnit = ocrResult.ocr.unit || 'kg';
       const confidence = ocrResult.ocr.confidence;
 
-      if (confidence < 0.5) {
-        Alert.alert(
-          'Low Confidence',
-          `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(confidence * 100)}%\n\nThis reading may be inaccurate.`,
-          [
-            {
-              text: 'Use This Reading',
-              onPress: () => handleWeightResult(detectedWeight, detectedUnit, ocrResult),
-            },
-            { text: 'Retake', onPress: () => setProcessing(false) },
-          ]
-        );
-      } else {
-        Alert.alert(
-          'Weight Detected',
-          `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(confidence * 100)}%`,
-          [
-            {
-              text: 'Confirm',
-              onPress: () => handleWeightResult(detectedWeight, detectedUnit, ocrResult),
-            },
-            { text: 'Retake', onPress: () => setProcessing(false) },
-          ]
-        );
-      }
+      Alert.alert(
+        'Weight Detected',
+        `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(confidence * 100)}%`,
+        [
+          {
+            text: 'Confirm',
+            onPress: () => handleWeightResult(detectedWeight, detectedUnit, ocrResult),
+          },
+          { text: 'Retake', onPress: () => setProcessing(false) },
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to process image', [
         { text: 'Retry', onPress: () => setProcessing(false) },

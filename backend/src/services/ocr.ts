@@ -1,6 +1,5 @@
 import sharp from 'sharp';
 import Tesseract from 'tesseract.js';
-import { config } from '../config';
 
 export interface OCRResult {
   text: string;
@@ -11,115 +10,31 @@ export interface OCRResult {
   rawDetections: string[];
 }
 
-export interface PreprocessedImage {
-  buffer: Buffer;
-  width: number;
-  height: number;
-}
+function preprocess(buffer: Buffer, strategy: 'gentle' | 'threshold' | 'highcontrast'): Promise<Buffer> {
+  let img = sharp(buffer);
 
-export async function preprocessImage(imageBuffer: Buffer): Promise<PreprocessedImage> {
-  const image = sharp(imageBuffer);
-  const metadata = await image.metadata();
-
-  let processed = image;
-
-  if ((metadata.width || 0) > 1920 || (metadata.height || 0) > 1920) {
-    processed = processed.resize({ width: 1920, height: 1920, fit: 'inside' });
+  if (strategy === 'gentle') {
+    img = img.greyscale().normalize().sharpen({ sigma: 0.8 });
+  } else if (strategy === 'threshold') {
+    img = img.greyscale().normalize().sharpen({ sigma: 1.2 }).threshold(160);
+  } else {
+    img = img.greyscale().linear(1.4, -30).sharpen({ sigma: 1.5 }).threshold(128);
   }
 
-  processed = processed
-    .greyscale()
-    .normalize()
-    .sharpen({ sigma: 1.5 })
-    .threshold(140);
-
-  const result = await processed.toBuffer({ resolveWithObject: true });
-
-  return {
-    buffer: result.data,
-    width: result.info.width,
-    height: result.info.height,
-  };
+  return img.toBuffer();
 }
 
-export async function detectDisplayRegion(imageBuffer: Buffer): Promise<Buffer> {
-  const image = sharp(imageBuffer);
-  const metadata = await image.metadata();
-
-  const width = metadata.width || 640;
-  const height = metadata.height || 480;
-
-  const cropLeft = Math.floor(width * 0.1);
-  const cropTop = Math.floor(height * 0.15);
-  const cropWidth = Math.floor(width * 0.8);
-  const cropHeight = Math.floor(height * 0.5);
-
-  const cropped = await image
-    .extract({
-      left: cropLeft,
-      top: cropTop,
-      width: Math.min(cropWidth, width - cropLeft),
-      height: Math.min(cropHeight, height - cropTop),
-    })
-    .toBuffer();
-
-  return cropped;
-}
-
-async function runOCR(imageBuffer: Buffer): Promise<{ text: string; confidence: number; rawDetections: string[] }> {
+async function runOCR(imageBuffer: Buffer, psm?: number): Promise<{ text: string; confidence: number; rawDetections: string[] }> {
+  const config: Record<string, string | number> = { tessedit_pageseg_mode: psm ?? 6 };
   const result = await Tesseract.recognize(imageBuffer, 'eng', {
     logger: () => {},
+    ...config,
   });
-  const rawText = result.data.text;
-  const confidence = result.data.confidence / 100;
-  const allTexts = result.data.lines.map(line => line.text.trim()).filter(t => t.length > 0);
-  return { text: rawText, confidence, rawDetections: allTexts };
-}
-
-export async function extractWeightFromImage(imageBuffer: Buffer): Promise<OCRResult> {
-  const startTime = Date.now();
-
-  try {
-    const displayBuffer = await detectDisplayRegion(imageBuffer);
-    const preprocessed = await preprocessImage(displayBuffer);
-
-    let { text: rawText, confidence, rawDetections } = await runOCR(preprocessed.buffer);
-    let weight = parseWeight(rawText);
-    let unit = parseUnit(rawText);
-
-    if (!weight) {
-      const fullPreprocessed = await preprocessImage(imageBuffer);
-      const fullResult = await runOCR(fullPreprocessed.buffer);
-      if (parseWeight(fullResult.text)) {
-        rawText = fullResult.text;
-        confidence = fullResult.confidence;
-        rawDetections = fullResult.rawDetections;
-        weight = parseWeight(rawText);
-        unit = parseUnit(rawText);
-      }
-    }
-
-    const processingTimeMs = Date.now() - startTime;
-
-    return {
-      text: rawText.trim(),
-      confidence,
-      weight,
-      unit,
-      processingTimeMs,
-      rawDetections,
-    };
-  } catch (error) {
-    console.error('OCR extraction error:', error);
-    return {
-      text: '',
-      confidence: 0,
-      weight: null,
-      unit: null,
-      processingTimeMs: Date.now() - startTime,
-      rawDetections: [],
-    };
-  }
+  return {
+    text: result.data.text,
+    confidence: result.data.confidence / 100,
+    rawDetections: result.data.lines.map(l => l.text.trim()).filter(t => t.length > 0),
+  };
 }
 
 function parseWeight(text: string): number | null {
@@ -138,23 +53,83 @@ function parseWeight(text: string): number | null {
       }
     }
   }
-
   return null;
 }
 
 function parseUnit(text: string): string | null {
-  const unitPatterns = [
-    { pattern: /\b(kg|kgs|KG|KGS|Kg)\b/, unit: 'kg' },
-    { pattern: /\b(g|G)\b/, unit: 'g' },
-  ];
-
-  for (const { pattern, unit } of unitPatterns) {
-    if (pattern.test(text)) {
-      return unit;
-    }
-  }
-
+  if (/\b(kg|kgs|KG|KGS|Kg)\b/.test(text)) return 'kg';
+  if (/\b(g|G)\b/.test(text)) return 'g';
   return null;
+}
+
+export async function extractWeightFromImage(imageBuffer: Buffer): Promise<OCRResult> {
+  const startTime = Date.now();
+  const strategies: Array<{ buffer: Buffer; label: string }> = [];
+
+  try {
+    const metadata = await sharp(imageBuffer).metadata();
+    const w = metadata.width || 640;
+    const h = metadata.height || 480;
+
+    const fullResize = sharp(imageBuffer).resize({ width: Math.min(w, 1600), height: Math.min(h, 1600), fit: 'inside' });
+    const fullBuffer = await fullResize.toBuffer();
+
+    const cropLeft = Math.floor(w * 0.05);
+    const cropTop = Math.floor(h * 0.1);
+    const cropW = Math.floor(w * 0.9);
+    const cropH = Math.floor(h * 0.55);
+    const cropped = await sharp(imageBuffer)
+      .extract({ left: cropLeft, top: cropTop, width: Math.min(cropW, w - cropLeft), height: Math.min(cropH, h - cropTop) })
+      .resize({ width: 1200, fit: 'inside' })
+      .toBuffer();
+
+    for (const buf of [fullBuffer, cropped]) {
+      for (const strat of ['gentle', 'threshold', 'highcontrast'] as const) {
+        strategies.push({ buffer: await preprocess(buf, strat), label: strat });
+      }
+    }
+
+    let bestWeight: number | null = null;
+    let bestUnit: string | null = null;
+    let bestConfidence = 0;
+    let bestText = '';
+    let bestRawDetections: string[] = [];
+
+    for (const { buffer } of strategies) {
+      for (const psm of [7, 6, 13]) {
+        const result = await runOCR(buffer, psm);
+        const w = parseWeight(result.text);
+        if (w && result.confidence > bestConfidence) {
+          bestWeight = w;
+          bestUnit = parseUnit(result.text);
+          bestConfidence = result.confidence;
+          bestText = result.text;
+          bestRawDetections = result.rawDetections;
+        }
+        if (bestWeight && bestConfidence > 0.3) break;
+      }
+      if (bestWeight && bestConfidence > 0.3) break;
+    }
+
+    return {
+      text: bestText.trim(),
+      confidence: bestConfidence,
+      weight: bestWeight,
+      unit: bestUnit,
+      processingTimeMs: Date.now() - startTime,
+      rawDetections: bestRawDetections,
+    };
+  } catch (error) {
+    console.error('OCR extraction error:', error);
+    return {
+      text: '',
+      confidence: 0,
+      weight: null,
+      unit: null,
+      processingTimeMs: Date.now() - startTime,
+      rawDetections: [],
+    };
+  }
 }
 
 export function validateOCRResult(ocrResult: OCRResult): {
@@ -170,15 +145,7 @@ export function validateOCRResult(ocrResult: OCRResult): {
     };
   }
 
-  if (ocrResult.confidence < config.ocr.confidenceThreshold) {
-    return {
-      valid: false,
-      confidence: ocrResult.confidence > 0.3 ? 'medium' : 'low',
-      error: 'Low confidence reading. Please retake the photo.',
-    };
-  }
-
-  const unit = ocrResult.unit || config.defaultUnit;
+  const unit = ocrResult.unit || 'kg';
   const grams = unit === 'kg' ? ocrResult.weight * 1000 : ocrResult.weight;
 
   if (grams < 1 || grams > 500000) {
@@ -189,8 +156,8 @@ export function validateOCRResult(ocrResult: OCRResult): {
     };
   }
 
-  const confidenceLevel = ocrResult.confidence >= 0.8 ? 'high' :
-    ocrResult.confidence >= 0.6 ? 'medium' : 'low';
+  const confidenceLevel = ocrResult.confidence >= 0.6 ? 'high' :
+    ocrResult.confidence >= 0.3 ? 'medium' : 'low';
 
   return {
     valid: true,
