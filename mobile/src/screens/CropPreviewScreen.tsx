@@ -11,8 +11,7 @@ import {
   PanResponder,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { processImageLocally } from '../services/ocr';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const HR = 14;
@@ -48,7 +47,6 @@ export default function CropPreviewScreen({ route, navigation }: any) {
     tareUnit,
     onWeightDetected,
   } = route.params;
-  const { getValidToken } = useAuth();
   const [analyzing, setAnalyzing] = useState(false);
 
   const displayH = Math.min(SW * (originalHeight / originalWidth), SH * 0.6);
@@ -190,30 +188,19 @@ export default function CropPreviewScreen({ route, navigation }: any) {
           },
         ],
         {
-          compress: 0.8,
+          compress: 0.9,
           format: ImageManipulator.SaveFormat.JPEG,
         },
       );
 
-      const token = await getValidToken();
-      const ocrResult = await api.processOCR(cropped.uri, token);
+      const ocrResult = await processImageLocally(cropped.uri);
 
-      if (!ocrResult.validation.valid) {
-        Alert.alert(
-          'Could Not Read Weight',
-          ocrResult.validation.error || 'Please adjust the box or retake the photo.',
-          [
-            { text: 'Adjust Box', onPress: () => setAnalyzing(false) },
-            { text: 'Retake', onPress: () => navigation.goBack() },
-          ],
-        );
-        return;
-      }
-
-      if (!ocrResult.ocr.weight) {
+      if (!ocrResult.weight) {
         Alert.alert(
           'No Weight Detected',
-          'Could not detect a weight value in the selected area.',
+          ocrResult.rawText
+            ? `Detected text: "${ocrResult.rawText}"\n\nCould not find a weight value. Please adjust the box or retake.`
+            : 'Could not detect any text. Please adjust the box to cover the weight display.',
           [
             { text: 'Adjust Box', onPress: () => setAnalyzing(false) },
             { text: 'Retake', onPress: () => navigation.goBack() },
@@ -222,12 +209,12 @@ export default function CropPreviewScreen({ route, navigation }: any) {
         return;
       }
 
-      const detectedWeight = ocrResult.ocr.weight;
-      const detectedUnit = ocrResult.ocr.unit || 'kg';
+      const detectedWeight = ocrResult.weight;
+      const detectedUnit = ocrResult.unit || 'kg';
 
       Alert.alert(
         'Weight Detected',
-        `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(ocrResult.ocr.confidence * 100)}%`,
+        `Detected weight: ${detectedWeight} ${detectedUnit}\nConfidence: ${Math.round(ocrResult.confidence * 100)}%\n\nRaw: ${ocrResult.rawText}`,
         [
           {
             text: 'Confirm',
@@ -243,9 +230,9 @@ export default function CropPreviewScreen({ route, navigation }: any) {
                   grossUnit: detectedUnit,
                   tareWeight,
                   tareUnit,
-                  ocrConfidence: ocrResult.ocr.confidence,
-                  ocrRawResult: ocrResult.ocr.text,
-                  processingTimeMs: ocrResult.ocr.processing_time_ms,
+                  ocrConfidence: ocrResult.confidence,
+                  ocrRawResult: ocrResult.rawText,
+                  processingTimeMs: 0,
                 });
               }
             },

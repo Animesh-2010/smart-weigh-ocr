@@ -1,4 +1,4 @@
-import { SUPABASE, OCR_BACKEND_URL } from '../config/supabase';
+import { SUPABASE } from '../config/supabase';
 
 // ─── Supabase helpers ────────────────────────────────────────────
 
@@ -409,34 +409,6 @@ async function getWeighing(token: string, id: string) {
   return { weighing: formatWeighing(rows[0]) };
 }
 
-// ─── OCR API (Render backend) ───────────────────────────────────
-
-import * as ImageManipulator from 'expo-image-manipulator';
-
-async function processOCR(imageUri: string, _token: string) {
-  const manipulated = await ImageManipulator.manipulateAsync(
-    imageUri,
-    [{ resize: { width: 1024 } }],
-    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-  );
-
-  if (!manipulated.base64) {
-    throw new Error('Failed to encode image');
-  }
-
-  const res = await fetch(`${OCR_BACKEND_URL}/ocr/process`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: manipulated.base64 }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'OCR processing failed');
-  }
-  return data;
-}
-
 // ─── Public API ──────────────────────────────────────────────────
 
 export const api = {
@@ -456,7 +428,4 @@ export const api = {
   createWeighing,
   getWeighings,
   getWeighing,
-
-  // OCR
-  processOCR,
 };

@@ -45,7 +45,8 @@
         {
           "photosPermission": "Smart Weigh needs photo access to select images for weight reading."
         }
-      ]
+      ],
+      "expo-mlkit-ocr"
     ],
     "extra": {
       "eas": {
